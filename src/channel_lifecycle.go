@@ -170,8 +170,22 @@ func (lifecycle *channelLifecycle) ListWorkflows(ctx *cli.Context) {
 }
 
 // Returns a phase name from the given channel name
-func (lifecycle channelLifecycle) extractPhaseName(channelName string) (string, error) {
-	return "", nil
+func (lifecycle *channelLifecycle) extractPhaseName(channelName string) string {
+	phase := ""
+	hasPhase := false
+	for _, phase := range lifecycle.phases {
+		phase = phase + lifecycle.phasesDelimiter
+		if len(channelName) > len(phase) && strings.HasPrefix(channelName, phase) {
+			hasPhase = true
+			break
+		}
+	}
+	if hasPhase {
+		// Get phase
+		phase = strings.Split(channelName, lifecycle.phasesDelimiter)[0]
+	}
+
+	return phase
 }
 
 // Verifies phase name if it belongs to the current workflow at all
