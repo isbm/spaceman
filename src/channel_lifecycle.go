@@ -248,7 +248,7 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 		log.Println("Using specified workflow:", currentWorkflowName)
 
 		cfgPhases, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["phases"]
-		if configured {
+		if configured && cfgPhases != nil {
 			lifecycle.phases = make([]string, len(cfgPhases.([]interface{})))
 			for i, v := range cfgPhases.([]interface{}) {
 				lifecycle.phases[i] = v.(string)
@@ -258,7 +258,7 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 		}
 
 		cfgExclude, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["exclude"]
-		if configured {
+		if configured && cfgExclude != nil {
 			lifecycle.excludedChannels = make([]string, len(cfgExclude.([]interface{})))
 			for i, v := range cfgExclude.([]interface{}) {
 				lifecycle.excludedChannels[i] = v.(string)
