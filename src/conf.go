@@ -33,7 +33,7 @@ func Config() *configFiles {
 }
 
 // Return current configuration file
-func (cfg configFiles) getConfigFile(ctx *cli.Context) string {
+func (cfg *configFiles) getConfigFile(ctx *cli.Context) string {
 	custom := ctx.GlobalString("config")
 	if custom != "" {
 		cfg.used = custom
@@ -42,14 +42,14 @@ func (cfg configFiles) getConfigFile(ctx *cli.Context) string {
 	return cfg.used
 }
 
-func (cfg configFiles) checkFail(err error, message string) {
+func (cfg *configFiles) checkFail(err error, message string) {
 	if err != nil {
 		log.Fatal(err)
 		panic(message)
 	}
 }
 
-func (cfg configFiles) getConfig(ctx *cli.Context, sections ...string) *map[string]interface{} {
+func (cfg *configFiles) getConfig(ctx *cli.Context, sections ...string) *map[string]interface{} {
 	filename := cfg.getConfigFile(ctx)
 	if filename != "" {
 		if strings.HasPrefix(filename, "~/") {
