@@ -7,13 +7,10 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
-var flags []cli.Flag
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "Channel Tools"
 	app.Usage = "Organise Uyuni channels"
-
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "config",
