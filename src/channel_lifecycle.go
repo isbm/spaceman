@@ -266,6 +266,14 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 		} else {
 			log.Println("No channels configured to be excluded according to this workflow")
 		}
+
+		// Set delimiter
+		cfgDelimiter, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["delimiter"]
+		if configured && cfgDelimiter != nil {
+			lifecycle.phasesDelimiter = cfgDelimiter.(string)
+		} else {
+			lifecycle.phasesDelimiter = "-"
+		}
 	}
 }
 
