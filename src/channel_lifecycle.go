@@ -242,10 +242,10 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 	}
 	configuredWorkflow := lifecycle.getWorkflowConfig(currentWorkflowName, ctx)
 	if len(*configuredWorkflow) == 0 {
-		fmt.Println("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
+		log.Println("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
 		lifecycle.phases = []string{"dev", "uat", "prod"}
 	} else {
-		fmt.Println("Using specified workflow:", currentWorkflowName)
+		log.Println("Using specified workflow:", currentWorkflowName)
 
 		cfgPhases, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["phases"]
 		if configured {
@@ -275,16 +275,16 @@ func manageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle.setCurrentWorkflow(ctx)
 
 	if ctx.Bool("list-workflows") {
-		lifecycle.listWorkflows(ctx)
-	} else if ctx.Bool("promote") {
+		lifecycle.ListWorkflows(ctx)
+	} else if ctx.Bool("promote") || ctx.Bool("init") {
 		channelToPromote := ctx.String("channel")
 		if channelToPromote == "" {
-			endWithHint("Channel required.")
+			Console.exitOnUnknown("Channel required.")
 		}
-		fmt.Println("Channel:", ctx.String("channel"))
-		//lifecycle.promoteChannel(chanelName, phase)
+		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
+		log.Printf("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
 	} else {
-		endWithHint("Don't know what to do.")
+		Console.exitOnUnknown("Don't know what to do.")
 	}
 
 	return nil
