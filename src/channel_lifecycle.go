@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/thoas/go-funk"
 
@@ -113,6 +114,7 @@ type channelLifecycle struct {
 	channel          string
 	phases           []string
 	excludedChannels []string
+	phasesDelimiter  string
 }
 
 // ChannelLifecycle constructor
@@ -122,13 +124,28 @@ func ChannelLifecycle() *channelLifecycle {
 }
 
 // Promote channel to the specific stage
-func (lifecycle channelLifecycle) promoteChannel(chanelName string, phase string) {
-	fmt.Printf("Promoting channel \"%s\" to phase \"%s\"", chanelName, phase)
-	panic("Not implemented yet")
+func (lifecycle *channelLifecycle) promoteChannel(channelName string, init bool) string {
+	currentPhase := lifecycle.extractPhaseName(channelName)
+	if currentPhase == "" && !init {
+		Console.exitOnStderr("Unable to get phase")
+	}
+	nextPhase := lifecycle.getNextPhase(currentPhase, init)
+
+	if nextPhase != "" && !init {
+		channelName = fmt.Sprintf("%s%s%s", nextPhase, lifecycle.phasesDelimiter, channelName[len(currentPhase)+1:])
+	} else if nextPhase != "" && currentPhase != "" && init {
+		Console.exitOnStderr("Channel is already initalised. Please just promote it.")
+	} else if nextPhase != "" && currentPhase == "" && init {
+		channelName = fmt.Sprintf("%s%s%s", nextPhase, lifecycle.phasesDelimiter, channelName)
+	} else {
+		Console.exitOnStderr("Unable to promote channel.")
+	}
+
+	return channelName
 }
 
 // List available workflows
-func (lifecycle channelLifecycle) listWorkflows(ctx *cli.Context) {
+func (lifecycle *channelLifecycle) ListWorkflows(ctx *cli.Context) {
 	configSections := configuration.getConfig(ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
