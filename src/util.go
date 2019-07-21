@@ -11,8 +11,29 @@ func fileExists(path string) bool {
 	return info != nil && !info.IsDir()
 }
 
-// Standard finaliser
-func endWithHint(message string) {
-	os.Stderr.WriteString(fmt.Sprintf("%s Try --help for more details.\n", message))
+type console struct {
+	hint string
+}
+
+// NewConsole constructor
+func NewConsole() *console {
+	cns := new(console)
+	cns.hint = "Try --help for more details.\n"
+	return cns
+}
+
+func (cns *console) exitOnStderr(message string) {
+	os.Stderr.WriteString(fmt.Sprintf("Error: %s\n", message))
 	os.Exit(1)
+}
+
+func (cns *console) exitOnUnknown(message string) {
+	cns.exitOnStderr(fmt.Sprintf("%s %s", message, cns.hint))
+}
+
+// Console instance
+var Console console
+
+func init() {
+	Console = *NewConsole()
 }
