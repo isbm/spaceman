@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/thoas/go-funk"
+
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -108,7 +110,9 @@ func init() {
 }
 
 type channelLifecycle struct {
-	channel string
+	channel          string
+	phases           []string
+	excludedChannels []string
 }
 
 // ChannelLifecycle constructor
@@ -117,12 +121,15 @@ func ChannelLifecycle() *channelLifecycle {
 	return lifecycle
 }
 
+// Promote channel to the specific stage
+func (lifecycle channelLifecycle) promoteChannel(chanelName string, phase string) {
+	fmt.Printf("Promoting channel \"%s\" to phase \"%s\"", chanelName, phase)
+	panic("Not implemented yet")
+}
+
 // List available workflows
 func (lifecycle channelLifecycle) listWorkflows(ctx *cli.Context) {
 	configSections := configuration.getConfig(ctx, "lifecycle")
-	if len(*configSections) == 0 {
-		log.Fatal("No lifecycle configuration found")
-	}
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
 		workflowsConfig, exist := lifecycleConfig["workflows"]
@@ -145,13 +152,87 @@ func (lifecycle channelLifecycle) listWorkflows(ctx *cli.Context) {
 	}
 }
 
+// Returns a phase name from the given channel name
+func (lifecycle channelLifecycle) extractPhaseName(channelName string) (string, error) {
+	return "", nil
+}
+
+// Verifies phase name if it belongs to the current workflow at all
+func (lifecycle channelLifecycle) verifyPhase(phase string) {
+}
+
+// Get workflow configuration or return default one.
+func (lifecycle channelLifecycle) getWorkflowConfig(name string, ctx *cli.Context) *map[string]interface{} {
+	currentWorkflow := make(map[string]interface{})
+	configSections := configuration.getConfig(ctx, "lifecycle")
+	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
+	if exist {
+		workflowsConfig, exist := lifecycleConfig["workflows"]
+		if exist {
+			workflowsData := workflowsConfig.(map[interface{}]interface{})
+			for workflowName := range workflowsData {
+				if workflowName == name {
+					currentWorkflow[name] = workflowsData[name]
+					break
+				}
+			}
+		}
+	}
+
+	return &currentWorkflow
+}
+
+// Find what workflow currently is used and setup the phases
+func (lifecycle channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
+	currentWorkflowName := ctx.String("workflow")
+	if funk.Contains([]string{"", "default"}, currentWorkflowName) {
+		currentWorkflowName = "default"
+	}
+	configuredWorkflow := lifecycle.getWorkflowConfig(currentWorkflowName, ctx)
+	if len(*configuredWorkflow) == 0 {
+		fmt.Println("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
+		lifecycle.phases = []string{"dev", "uat", "prod"}
+	} else {
+		fmt.Println("Using specified workflow:", currentWorkflowName)
+
+		cfgPhases, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["phases"]
+		if configured {
+			lifecycle.phases = make([]string, len(cfgPhases.([]interface{})))
+			for i, v := range cfgPhases.([]interface{}) {
+				lifecycle.phases[i] = v.(string)
+			}
+		} else {
+			log.Fatal("Phases are not configured in this workflow, aborting.")
+		}
+
+		cfgExclude, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["exclude"]
+		if configured {
+			lifecycle.excludedChannels = make([]string, len(cfgExclude.([]interface{})))
+			for i, v := range cfgExclude.([]interface{}) {
+				lifecycle.excludedChannels[i] = v.(string)
+			}
+		} else {
+			log.Println("No channels configured to be excluded according to this workflow")
+		}
+	}
+}
+
 // Entry action for the managing channel lifecycle sub-app
 func manageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := ChannelLifecycle()
+	lifecycle.setCurrentWorkflow(ctx)
+
 	if ctx.Bool("list-workflows") {
 		lifecycle.listWorkflows(ctx)
+	} else if ctx.Bool("promote") {
+		channelToPromote := ctx.String("channel")
+		if channelToPromote == "" {
+			endWithHint("Channel required.")
+		}
+		fmt.Println("Channel:", ctx.String("channel"))
+		//lifecycle.promoteChannel(chanelName, phase)
 	} else {
-		fmt.Println("Don't know what to do. Try --help for more details, perhaps?")
+		endWithHint("Don't know what to do.")
 	}
 
 	return nil

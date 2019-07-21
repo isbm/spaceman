@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os/user"
@@ -71,6 +72,9 @@ func (cfg configFiles) getConfig(ctx *cli.Context, sections ...string) *map[stri
 			} else {
 				log.Printf("Section '%s' does not exist", section)
 			}
+		}
+		if len(content) == 0 {
+			log.Fatal(fmt.Sprintf("No configuration found for %s sections", strings.Join(sections, ", ")))
 		}
 
 		return &content
