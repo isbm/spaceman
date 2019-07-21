@@ -188,8 +188,29 @@ func (lifecycle *channelLifecycle) extractPhaseName(channelName string) string {
 	return phase
 }
 
-// Verifies phase name if it belongs to the current workflow at all
-func (lifecycle channelLifecycle) verifyPhase(phase string) {
+/*
+Get next phase for the channel from the configured workflow.
+If current phase is set to an empty string (e.g. not found in the name of the channel)
+and init is set to True, then first phase of the current workflow is used.
+*/
+func (lifecycle *channelLifecycle) getNextPhase(currentPhase string, init bool) string {
+	phase := ""
+	if currentPhase == "" && init {
+		phase = lifecycle.phases[0]
+	} else {
+		if currentPhase == lifecycle.phases[len(lifecycle.phases)-1] {
+			log.Fatal("Error. Unable to rotate phase: reached last available already.")
+		} else {
+			for i, lcPhase := range lifecycle.phases {
+				if lcPhase == currentPhase {
+					phase = lifecycle.phases[i+1]
+					break
+				}
+			}
+		}
+	}
+
+	return phase
 }
 
 // Get workflow configuration or return default one.
