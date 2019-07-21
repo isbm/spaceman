@@ -193,7 +193,7 @@ func (lifecycle channelLifecycle) verifyPhase(phase string) {
 }
 
 // Get workflow configuration or return default one.
-func (lifecycle channelLifecycle) getWorkflowConfig(name string, ctx *cli.Context) *map[string]interface{} {
+func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Context) *map[string]interface{} {
 	currentWorkflow := make(map[string]interface{})
 	configSections := configuration.getConfig(ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
@@ -214,7 +214,7 @@ func (lifecycle channelLifecycle) getWorkflowConfig(name string, ctx *cli.Contex
 }
 
 // Find what workflow currently is used and setup the phases
-func (lifecycle channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
+func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 	currentWorkflowName := ctx.String("workflow")
 	if funk.Contains([]string{"", "default"}, currentWorkflowName) {
 		currentWorkflowName = "default"
