@@ -17,19 +17,30 @@ import (
 	configFiles allows to keep track of existing configurations
 */
 type configFiles struct {
-	global string
-	local  string
-	used   string
+	global  string
+	local   string
+	session string
+	used    string
 }
 
 // Config object constructor
 func Config() *configFiles {
 	cfg := new(configFiles)
 	cfg.global = "/etc/rhn/spaceman.conf"
-	cfg.local = "~/.spacemanrc"
+	cfg.local = cfg.expandPath("~/.config/spaceman/config.conf")
+	cfg.session = cfg.expandPath("~/.config/spaceman/session.conf")
 	cfg.used = cfg.local
 
 	return cfg
+}
+
+// Expands "~" to "$HOME".
+func (cfg *configFiles) expandPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		usr, _ := user.Current()
+		path = filepath.Join(usr.HomeDir, path[2:])
+	}
+	return path
 }
 
 // Return current configuration file
@@ -52,10 +63,7 @@ func (cfg *configFiles) checkFail(err error, message string) {
 func (cfg *configFiles) getConfig(ctx *cli.Context, sections ...string) *map[string]interface{} {
 	filename := cfg.getConfigFile(ctx)
 	if filename != "" {
-		if strings.HasPrefix(filename, "~/") {
-			usr, _ := user.Current()
-			filename = filepath.Join(usr.HomeDir, filename[2:])
-		}
+		filename = cfg.expandPath(filename)
 		source, err := ioutil.ReadFile(filename)
 		cfg.checkFail(err, "Unable to read configuration file")
 
