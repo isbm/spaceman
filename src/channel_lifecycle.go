@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/thoas/go-funk"
@@ -234,6 +235,91 @@ func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Conte
 	return &currentWorkflow
 }
 
+// List available channels over XML-RPC API
+func (lifecycle *channelLifecycle) ListChannels(ctx *cli.Context) {
+	log.Println("List channels")
+	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
+	tree := make(map[string][]string)
+
+	for _, dat := range out.(Array) {
+		channel := dat.(Struct)
+		if channel["parent_label"] != "" {
+			if !funk.Contains(tree, channel["parent_label"]) {
+				tree[channel["parent_label"].(string)] = []string{}
+			}
+			tree[channel["parent_label"].(string)] = append(tree[channel["parent_label"].(string)], channel["label"].(string))
+		} else {
+			if !funk.Contains(tree, channel["label"]) {
+				tree[channel["label"].(string)] = []string{}
+			}
+		}
+	}
+
+	if len(tree) == 0 {
+		Console.exitOnStderr("No channels has been found")
+	} else {
+		lifecycle.outputTreeToStdout(tree)
+	}
+}
+
+// Prints the tree to the STDOUT
+func (lifecycle *channelLifecycle) outputTreeToStdout(tree map[string][]string) {
+	rootLabelIndex := []string{}
+	for label := range tree {
+		rootLabelIndex = append(rootLabelIndex, label)
+	}
+	sort.Strings(rootLabelIndex)
+
+	fmt.Printf("Tree of channels:\n%s\n", "\u2514\u2500\u2510")
+	var branch string
+	if len(rootLabelIndex) > 1 {
+		branch = "\u251c"
+	} else {
+		branch = "\u2514"
+	}
+	branchSingle := branch + "\u2500\u2500"
+	branchSingleEnd := "\u2514\u2500\u2500"
+
+	for idx, label := range rootLabelIndex {
+		idx++
+		childLabels, exists := tree[label]
+		var rootBranch string
+		if idx < len(rootLabelIndex) {
+			rootBranch = branchSingle
+		} else {
+			rootBranch = branchSingleEnd
+		}
+		fmt.Printf("  %s(%d) %s\n", rootBranch, idx, label)
+
+		if exists && len(childLabels) > 0 {
+			if idx < len(rootLabelIndex) {
+				fmt.Printf("  %s ", "\u2502")
+			} else {
+				fmt.Printf("    ")
+			}
+			sort.Strings(childLabels)
+			for cidx, childLabel := range childLabels {
+				if cidx == 0 {
+					if len(childLabels) == 1 {
+						fmt.Printf("     %s %s\n", branchSingleEnd, childLabel)
+					} else {
+						fmt.Printf("     %s %s\n", branchSingle, childLabel)
+					}
+				} else if cidx < len(childLabels)-1 {
+					fmt.Printf("  %s      %s %s\n", "\u2502", branchSingle, childLabel)
+				} else {
+					fmt.Printf("  %s      %s %s\n", "\u2502", branchSingleEnd, childLabel)
+				}
+			}
+		}
+		if idx < len(rootLabelIndex) {
+			fmt.Printf("  %s\n", "\u2502")
+		} else {
+			fmt.Println("")
+		}
+	}
+}
+
 // Find what workflow currently is used and setup the phases
 func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 	currentWorkflowName := ctx.String("workflow")
@@ -284,6 +370,8 @@ func manageChannelLifecycle(ctx *cli.Context) error {
 
 	if ctx.Bool("list-workflows") {
 		lifecycle.ListWorkflows(ctx)
+	} else if ctx.Bool("list-channels") {
+		lifecycle.ListChannels(ctx)
 	} else if ctx.Bool("promote") || ctx.Bool("init") {
 		channelToPromote := ctx.String("channel")
 		if channelToPromote == "" {
