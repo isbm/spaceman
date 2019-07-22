@@ -22,6 +22,13 @@ func NewConsole() *console {
 	return cns
 }
 
+// Error checking
+func (cns *console) checkError(err error) {
+	if err != nil {
+		cns.exitOnStderr(err.Error())
+	}
+}
+
 func (cns *console) exitOnStderr(message string) {
 	os.Stderr.WriteString(fmt.Sprintf("Error: %s\n", message))
 	os.Exit(1)
