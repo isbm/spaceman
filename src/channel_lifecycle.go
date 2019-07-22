@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"strings"
 
@@ -117,6 +116,7 @@ type channelLifecycle struct {
 	phases           []string
 	excludedChannels []string
 	phasesDelimiter  string
+	verbose          bool
 }
 
 // ChannelLifecycle constructor
@@ -201,7 +201,7 @@ func (lifecycle *channelLifecycle) getNextPhase(currentPhase string, init bool) 
 		phase = lifecycle.phases[0]
 	} else {
 		if currentPhase == lifecycle.phases[len(lifecycle.phases)-1] {
-			log.Fatal("Error. Unable to rotate phase: reached last available already.")
+			Logger.Fatal("Error. Unable to rotate phase: reached last available already.")
 		} else {
 			for i, lcPhase := range lifecycle.phases {
 				if lcPhase == currentPhase {
@@ -238,7 +238,7 @@ func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Conte
 
 // List available channels over XML-RPC API
 func (lifecycle *channelLifecycle) ListChannels(ctx *cli.Context) {
-	log.Println("List channels")
+	Logger.Info("List channels")
 	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
 	tree := make(map[string][]string)
 
@@ -329,10 +329,10 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 	}
 	configuredWorkflow := lifecycle.getWorkflowConfig(currentWorkflowName, ctx)
 	if len(*configuredWorkflow) == 0 {
-		log.Println("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
+		Logger.Debug("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
 		lifecycle.phases = []string{"dev", "uat", "prod"}
 	} else {
-		log.Println("Using specified workflow:", currentWorkflowName)
+		Logger.Debug("Using specified workflow: %s", currentWorkflowName)
 
 		cfgPhases, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["phases"]
 		if configured && cfgPhases != nil {
@@ -341,7 +341,7 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 				lifecycle.phases[i] = v.(string)
 			}
 		} else {
-			log.Fatal("Phases are not configured in this workflow, aborting.")
+			Logger.Fatal("Phases are not configured in this workflow, aborting.")
 		}
 
 		cfgExclude, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["exclude"]
@@ -351,7 +351,7 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 				lifecycle.excludedChannels[i] = v.(string)
 			}
 		} else {
-			log.Println("No channels configured to be excluded according to this workflow")
+			Logger.Info("No channels configured to be excluded according to this workflow")
 		}
 
 		// Set delimiter
@@ -391,7 +391,7 @@ func manageChannelLifecycle(ctx *cli.Context) error {
 			Console.exitOnUnknown("Channel required.")
 		}
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
-		log.Printf("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
+		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
 	} else {
 		Console.exitOnUnknown("Don't know what to do.")
 	}
