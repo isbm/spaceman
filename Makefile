@@ -21,6 +21,7 @@ all:
 build:
 	@echo "Building binary..."
 	$(GOBUILD) -o bin/spaceman src/*.go
+	strip --strip-unneeded bin/spaceman
 
 test:
 	@echo "Nothing here yet"
