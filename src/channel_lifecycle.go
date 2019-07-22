@@ -11,6 +11,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 )
 
+var Logger loggerController
 var channelLifecycleFlags []cli.Flag
 
 func init() {
@@ -363,9 +364,21 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 	}
 }
 
+// Set flags from CLI and configuration about current runtime session
+func (lifecycle *channelLifecycle) setCurrentConfig(ctx *cli.Context) {
+	if ctx.GlobalBool("quiet") && ctx.GlobalBool("verbose") {
+		Console.exitOnUnknown("Don't know how to be quietly verbose.")
+	}
+
+	Logger = *LoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
+		!ctx.GlobalBool("quiet"), ctx.GlobalBool("verbose"))
+	Logger.Debug("Configuration set")
+}
+
 // Entry action for the managing channel lifecycle sub-app
 func manageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := ChannelLifecycle()
+	lifecycle.setCurrentConfig(ctx)
 	lifecycle.setCurrentWorkflow(ctx)
 
 	if ctx.Bool("list-workflows") {
