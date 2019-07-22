@@ -17,6 +17,16 @@ func main() {
 			Value: configuration.used,
 			Usage: "Configuration file",
 		},
+		cli.BoolFlag{
+			Name:   "V, verbose",
+			Usage:  "Print log messages about every step",
+			Hidden: false,
+		},
+		cli.BoolFlag{
+			Name:   "Q, quiet",
+			Usage:  "Turn off entire logging (no errors either), only standard messages, if any",
+			Hidden: false,
+		},
 	}
 
 	app.Commands = []cli.Command{
