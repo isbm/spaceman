@@ -6,25 +6,28 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/kolo/xmlrpc"
 )
 
 // RPC client object to call the XML-RPC server
 type rpcClient struct {
-	url      string
-	user     string
-	password string
-	session  string
+	url        string
+	user       string
+	password   string
+	session    string
+	connection *xmlrpc.Client
 }
 
 // RPCClient object constructor
 func RPCClient(url string, user string, password string, insecure bool) *rpcClient {
-	HttpClient = &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}}, Timeout: 10 * time.Second}
 	client := new(rpcClient)
 	client.url = url
 	client.user = user
 	client.password = password
 	client.session, _ = client.getSession()
+	client.connection, _ = xmlrpc.NewClient(client.url, &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}})
+
 	return client
 }
 
@@ -54,24 +57,27 @@ func (client *rpcClient) auth() {
 	Console.checkError(client.storeSession())
 }
 
-/*
-Request a function call on the remote.
-*/
+// Request a function call on the remote
 func (client *rpcClient) requestFuction(name string, args ...interface{}) (v interface{}) {
-	var ret interface{}
-	var err error
+	var result interface{}
+	err := client.connection.Call(name, args, &result)
 
-	ret, err = Call(client.url, name, args...)
-	if err != nil && err.Error() == "invalid response: missing params" {
+	if err != nil && strings.Contains(err.Error(),
+		"Could not find translator for class java.lang.String to interface com.redhat.rhn.domain.user.User") { // Detect auth failure error in Uyuni :-)
 		client.auth()
-		ret, err = Call(client.url, name, args...) // Call it again, refreshed session
+		// Repeat it again with replaced first element, which is always session token
+		nArgs := make([]interface{}, len(args))
+		nArgs[0] = client.session
+		Console.checkError(client.connection.Call(name, nArgs, &result))
+	} else {
+		Console.checkError(err)
 	}
-	Console.checkError(err)
-	return ret
+
+	return result
 }
 
 var rpc rpcClient
 
 func init() {
-	rpc = *RPCClient("http://localhost:8000", "user", "password") // XXX: todo get creds from the STDIN
+	rpc = *RPCClient("https://suma-refhead-srv.mgr.suse.de/rpc/api", "admin", "admin", true) // XXX: todo get creds from the STDIN
 }
