@@ -37,6 +37,13 @@ func main() {
 			Action:  manageChannelLifecycle,
 			Flags:   channelLifecycleFlags,
 		},
+		{
+			Name:    "info",
+			Aliases: []string{"in"},
+			Usage:   "Information about channels, packages, machines etc.",
+			Action:  mainInfoCmd,
+			Flags:   infoCmdFlags,
+		},
 	}
 
 	err := app.Run(os.Args)
