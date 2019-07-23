@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aybabtme/rgbterm"
+
 	"github.com/thoas/go-funk"
 
 	"gopkg.in/urfave/cli.v1"
@@ -236,21 +238,27 @@ func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Conte
 	return &currentWorkflow
 }
 
+// Check if specified channel exists
+func (lifecycle *channelLifecycle) ChannelExists(name string) bool {
+	out := rpc.requestFuction("channel.software.getDetails", rpc.session, name)
+	return false
+}
+
 // List available channels over XML-RPC API
 func (lifecycle *channelLifecycle) ListChannels(ctx *cli.Context) {
 	Logger.Info("List channels")
 	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
 	tree := make(map[string][]string)
 
-	for _, dat := range out.(Array) {
-		channel := dat.(Struct)
-		if channel["parent_label"] != "" {
+	for _, dat := range out.([]interface{}) {
+		channel := dat.(map[string]interface{})
+		if channel["parent_label"] != nil {
 			if !funk.Contains(tree, channel["parent_label"]) {
 				tree[channel["parent_label"].(string)] = []string{}
 			}
 			tree[channel["parent_label"].(string)] = append(tree[channel["parent_label"].(string)], channel["label"].(string))
 		} else {
-			if !funk.Contains(tree, channel["label"]) {
+			if channel["label"] != nil && !funk.Contains(tree, channel["label"]) {
 				tree[channel["label"].(string)] = []string{}
 			}
 		}
@@ -392,6 +400,7 @@ func manageChannelLifecycle(ctx *cli.Context) error {
 		if channelToPromote == "" {
 			Console.exitOnUnknown("Channel required.")
 		}
+		lifecycle.ChannelExists(channelToPromote)
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
 	} else {
