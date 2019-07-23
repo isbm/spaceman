@@ -290,7 +290,9 @@ func (lifecycle *channelLifecycle) outputTreeToStdout(tree map[string][]string) 
 		} else {
 			rootBranch = branchSingleEnd
 		}
-		fmt.Printf("  %s(%d) %s\n", rootBranch, idx, label)
+		cIdx := rgbterm.FgString(fmt.Sprintf("(%02d)", idx), 0xff, 0xff, 0) // Index of the root channel
+		cLabel := rgbterm.FgString(label, 0xff, 0xff, 0xff)
+		fmt.Printf("  %s%s %s\n", rootBranch, cIdx, cLabel)
 
 		if exists && len(childLabels) > 0 {
 			if idx < len(rootLabelIndex) {
@@ -302,14 +304,14 @@ func (lifecycle *channelLifecycle) outputTreeToStdout(tree map[string][]string) 
 			for cidx, childLabel := range childLabels {
 				if cidx == 0 {
 					if len(childLabels) == 1 {
-						fmt.Printf("     %s %s\n", branchSingleEnd, childLabel)
+						fmt.Printf("      %s %s\n", branchSingleEnd, childLabel)
 					} else {
-						fmt.Printf("     %s %s\n", branchSingle, childLabel)
+						fmt.Printf("      %s %s\n", branchSingle, childLabel)
 					}
 				} else if cidx < len(childLabels)-1 {
-					fmt.Printf("  %s      %s %s\n", "\u2502", branchSingle, childLabel)
+					fmt.Printf("  %s       %s %s\n", "\u2502", branchSingle, childLabel)
 				} else {
-					fmt.Printf("  %s      %s %s\n", "\u2502", branchSingleEnd, childLabel)
+					fmt.Printf("  %s       %s %s\n", "\u2502", branchSingleEnd, childLabel)
 				}
 			}
 		}
