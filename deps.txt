@@ -1,4 +1,7 @@
 go get -u -v github.com/smallfish/simpleyaml
 go get github.com/thoas/go-funk
 go get -u github.com/davecgh/go-spew/spew
+go get -u github.com/aybabtme/rgbterm
 
+go get -u github.com/kolo/xmlrpc
+go get -u github.com/gosuri/uitable
