@@ -50,7 +50,11 @@ func (logger *loggerController) put(level int, message string, args ...string) {
 	}
 
 	if len(args) > 0 {
-		message = fmt.Sprintf(message, args)
+		sargs := make([]interface{}, len(args))
+		for idx := range sargs {
+			sargs[idx] = args[idx]
+		}
+		message = fmt.Sprintf(message, sargs...)
 	}
 
 	log.Printf("[%s] %s\n", prefix, message)
