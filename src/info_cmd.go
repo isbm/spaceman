@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
-	"sort"
-
 	"github.com/aybabtme/rgbterm"
-
-	"github.com/gosuri/uitable"
-
+	"github.com/isbm/asciitable"
+	"github.com/thoas/go-funk"
 	"gopkg.in/urfave/cli.v1"
+	"sort"
 )
 
 var infoCmdFlags []cli.Flag
@@ -18,6 +16,11 @@ func init() {
 		cli.StringFlag{
 			Name:  "c, channel",
 			Usage: "Get information about specified channel",
+		},
+		cli.BoolFlag{
+			Name:   "l, list-channels",
+			Usage:  "list existing channels",
+			Hidden: false,
 		},
 	}
 }
@@ -34,8 +37,10 @@ func InfoCmd(ctx *cli.Context) *infoCmd {
 	return nfo
 }
 
-func (nfo *infoCmd) ChannelDetails() {
-	channel := nfo.cliArgs.String("channel")
+func (nfo *infoCmd) ChannelDetails(channel string) {
+	if channel == "" {
+		channel = nfo.cliArgs.String("channel")
+	}
 	out := rpc.requestFuction("channel.software.getDetails", rpc.session, channel)
 
 	fmt.Printf("\nDetails of channel \"%s\":\n", channel)
@@ -51,16 +56,36 @@ func (nfo *infoCmd) ChannelDetails() {
 
 }
 
+// List available channels tree
+func (nfo *infoCmd) ListAvailableChannels() {
+	Logger.Info("List channels")
+	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
+	tree := make(map[string][]string)
+
+	for _, dat := range out.([]interface{}) {
+		channel := dat.(map[string]interface{})
+		if channel["parent_label"] != nil {
+			if !funk.Contains(tree, channel["parent_label"]) {
+				tree[channel["parent_label"].(string)] = []string{}
+			}
+			tree[channel["parent_label"].(string)] = append(tree[channel["parent_label"].(string)], channel["label"].(string))
+		} else {
+			if channel["label"] != nil && !funk.Contains(tree, channel["label"]) {
+				tree[channel["label"].(string)] = []string{}
+			}
+		}
+	}
+
+	if len(tree) == 0 {
+		Console.exitOnStderr("No channels has been found")
+	} else {
+		NewAnsiCLI().Tree(tree)
+	}
+}
+
 // Print channel info to the STDOUT
 func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interface{} {
-	unprocessedData := make(map[string]interface{}, 0)
-
-	table := uitable.New()
-	table.MaxColWidth = 80
-	table.Separator = "  "
-	table.Wrap = false
-	table.AddRow(rgbterm.FgString("NAME", 0xff, 0xff, 0xff), rgbterm.FgString("DESCRIPTION", 0xff, 0xff, 0xff))
-
+	unprocessedData := make(map[string]interface{})
 	activeLabelMaker := NewLabels(true, 0xff, 0xff, 0)
 	passiveLabelMaker := NewLabels(true, 0x80, 0x80, 0x80)
 
@@ -71,6 +96,9 @@ func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interfa
 		idx++
 	}
 	sort.Strings(dataNames)
+
+	tableDataContainer := asciitable.NewTableData().SetHeader(rgbterm.FgString("NAME", 0xff, 0xff, 0xff),
+		rgbterm.FgString("DESCRIPTION", 0xff, 0xff, 0xff))
 
 	for _, name := range dataNames {
 		descr := data[name]
@@ -85,17 +113,33 @@ func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interfa
 			} else {
 				name = activeLabelMaker.mapKeyToLabel(name)
 			}
-			table.AddRow(name, descr)
+
+			tableDataContainer.AddRow(name, descr)
 		}
 	}
-	fmt.Println(table)
+
+	tableStyle := asciitable.NewBorderStyle(asciitable.BORDER_SINGLE_THIN, asciitable.BORDER_SINGLE_THIN).
+		SetBorderVisible(false).
+		SetGridVisible(false).
+		SetHeaderVisible(true).
+		SetHeaderStyle(asciitable.BORDER_SINGLE_THICK).
+		SetTableWidthFull(true)
+
+	table := asciitable.NewSimpleTable(tableDataContainer, tableStyle).
+		SetCellPadding(1).
+		SetTextWrap(true).
+		SetColWidth(25, -1).
+		SetColAlign(asciitable.ALIGN_RIGHT, 0).
+		SetColTextWrap(false, 0)
+
+	fmt.Println(table.Render())
 	fmt.Println()
 
 	return unprocessedData
 }
 
 // Set flags from CLI and configuration about current runtime session
-func (nfo *infoCmd) setCurrentConfig(ctx *cli.Context) {
+func (nfo *infoCmd) setCurrentConfig(ctx *cli.Context) *infoCmd {
 	if ctx.GlobalBool("quiet") && ctx.GlobalBool("verbose") {
 		Console.exitOnUnknown("Don't know how to be quietly verbose.")
 	}
@@ -103,14 +147,17 @@ func (nfo *infoCmd) setCurrentConfig(ctx *cli.Context) {
 	Logger = *LoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
 		!ctx.GlobalBool("quiet"), ctx.GlobalBool("verbose"))
 	Logger.Debug("Configuration set")
+
+	return nfo
 }
 
 // Entry action for the info sub-app
 func mainInfoCmd(ctx *cli.Context) error {
-	nfo := InfoCmd(ctx)
-	nfo.setCurrentConfig(ctx)
+	nfo := InfoCmd(ctx).setCurrentConfig(ctx)
 	if ctx.String("channel") != "" {
-		nfo.ChannelDetails()
+		nfo.ChannelDetails("")
+	} else if ctx.Bool("list-channels") {
+		nfo.ListAvailableChannels()
 	} else {
 		Console.exitOnUnknown("Don't know what kind of info you would like to have.")
 	}
