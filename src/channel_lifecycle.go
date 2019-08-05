@@ -2,14 +2,10 @@ package main
 
 import (
 	"fmt"
-	"sort"
-	"strings"
-
 	"github.com/aybabtme/rgbterm"
-
 	"github.com/thoas/go-funk"
-
 	"gopkg.in/urfave/cli.v1"
+	"strings"
 )
 
 var Logger loggerController
@@ -35,11 +31,6 @@ func init() {
 		cli.BoolFlag{
 			Name:   "rollback",
 			Usage:  "rollback last operation",
-			Hidden: false,
-		},
-		cli.BoolFlag{
-			Name:   "l, list-channels",
-			Usage:  "list existing channels",
 			Hidden: false,
 		},
 		cli.StringFlag{
@@ -70,18 +61,6 @@ func init() {
 			Usage: "comma-separated list of phases",
 			Value: "dev,test,prod",
 		},
-		cli.StringFlag{
-			Name:  "u, username, user",
-			Usage: "Uyuni username",
-		},
-		cli.StringFlag{
-			Name:  "p, password, pwd",
-			Usage: "Uyuni password",
-		},
-		cli.StringFlag{
-			Name:  "s, server",
-			Usage: "Uyuni server",
-		},
 		cli.BoolFlag{
 			Name:   "n, dry-run",
 			Usage:  "don't perform any real operations",
@@ -101,10 +80,6 @@ func init() {
 			Name:  "w, workflow",
 			Usage: "use configured worflow",
 		},
-		cli.StringFlag{
-			Name:  "D, delimiter",
-			Usage: "use configured worflowdelimiter used between workflow and channel name",
-		},
 		cli.BoolFlag{
 			Name:   "f, list-workflows",
 			Usage:  "list configured workflows",
@@ -119,11 +94,14 @@ type channelLifecycle struct {
 	excludedChannels []string
 	phasesDelimiter  string
 	verbose          bool
+	ctx              *cli.Context
 }
 
-// ChannelLifecycle constructor
-func ChannelLifecycle() *channelLifecycle {
+// NewChannelLifecycle constructor
+func NewChannelLifecycle(context *cli.Context) *channelLifecycle {
 	lifecycle := new(channelLifecycle)
+	lifecycle.ctx = context
+
 	return lifecycle
 }
 
@@ -146,6 +124,34 @@ func (lifecycle *channelLifecycle) promoteChannel(channelName string, init bool)
 	}
 
 	return channelName
+}
+
+// Clone channel by label
+func (lifecycle *channelLifecycle) CloneChannel(labelSrc string, labelDst string, details map[string]interface{}) {
+	if lifecycle.ctx.String("exclude-channel") != "" {
+		excludePattern := lifecycle.ctx.String("exclude-channel")
+		if strings.Contains(labelSrc, excludePattern) {
+			labelSrc = strings.ReplaceAll(labelSrc, excludePattern, rgbterm.FgString(excludePattern, 0xff, 0xff, 0))
+			Logger.Fatal("Seems like you wanted to exclude this channel (" + labelSrc + ")?")
+		}
+	}
+	sourceChannelLabel, exist := details["label"]
+	if !exist {
+		Logger.Fatal("Unable to get full data about the channel: label is missing")
+	}
+	cloneDetails := make(map[string]interface{})
+	cloneDetails["label"] = labelDst
+	cloneDetails["name"] = labelDst
+	cloneDetails["summary"] = details["summary"]
+
+	if details["parent_channel_label"] != nil {
+		cloneDetails["parent_label"] = details["parent_channel_label"]
+	} else {
+		cloneDetails["parent_label"] = ""
+	}
+
+	Logger.Debug("Getting details about channel \"%s\"", sourceChannelLabel.(string))
+	rpc.requestFuction("channel.software.clone", rpc.session, sourceChannelLabel, cloneDetails, false)
 }
 
 // List available workflows
@@ -218,9 +224,9 @@ func (lifecycle *channelLifecycle) getNextPhase(currentPhase string, init bool) 
 }
 
 // Get workflow configuration or return default one.
-func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Context) *map[string]interface{} {
+func (lifecycle *channelLifecycle) getWorkflowConfig(name string) *map[string]interface{} {
 	currentWorkflow := make(map[string]interface{})
-	configSections := configuration.getConfig(ctx, "lifecycle")
+	configSections := configuration.getConfig(lifecycle.ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
 		workflowsConfig, exist := lifecycleConfig["workflows"]
@@ -239,105 +245,18 @@ func (lifecycle *channelLifecycle) getWorkflowConfig(name string, ctx *cli.Conte
 }
 
 // Check if specified channel exists
-func (lifecycle *channelLifecycle) ChannelExists(name string) bool {
-	out := rpc.requestFuction("channel.software.getDetails", rpc.session, name)
-	return false
-}
-
-// List available channels over XML-RPC API
-func (lifecycle *channelLifecycle) ListChannels(ctx *cli.Context) {
-	Logger.Info("List channels")
-	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
-	tree := make(map[string][]string)
-
-	for _, dat := range out.([]interface{}) {
-		channel := dat.(map[string]interface{})
-		if channel["parent_label"] != nil {
-			if !funk.Contains(tree, channel["parent_label"]) {
-				tree[channel["parent_label"].(string)] = []string{}
-			}
-			tree[channel["parent_label"].(string)] = append(tree[channel["parent_label"].(string)], channel["label"].(string))
-		} else {
-			if channel["label"] != nil && !funk.Contains(tree, channel["label"]) {
-				tree[channel["label"].(string)] = []string{}
-			}
-		}
-	}
-
-	if len(tree) == 0 {
-		Console.exitOnStderr("No channels has been found")
-	} else {
-		lifecycle.outputTreeToStdout(tree)
-	}
-}
-
-// Prints the tree to the STDOUT
-func (lifecycle *channelLifecycle) outputTreeToStdout(tree map[string][]string) {
-	rootLabelIndex := []string{}
-	for label := range tree {
-		rootLabelIndex = append(rootLabelIndex, label)
-	}
-	sort.Strings(rootLabelIndex)
-
-	fmt.Printf("Tree of channels:\n%s\n", "\u2514\u2500\u2510")
-	var branch string
-	if len(rootLabelIndex) > 1 {
-		branch = "\u251c"
-	} else {
-		branch = "\u2514"
-	}
-	branchSingle := branch + "\u2500\u2500"
-	branchSingleEnd := "\u2514\u2500\u2500"
-
-	for idx, label := range rootLabelIndex {
-		idx++
-		childLabels, exists := tree[label]
-		var rootBranch string
-		if idx < len(rootLabelIndex) {
-			rootBranch = branchSingle
-		} else {
-			rootBranch = branchSingleEnd
-		}
-		cIdx := rgbterm.FgString(fmt.Sprintf("(%02d)", idx), 0xff, 0xff, 0) // Index of the root channel
-		cLabel := rgbterm.FgString(label, 0xff, 0xff, 0xff)
-		fmt.Printf("  %s%s %s\n", rootBranch, cIdx, cLabel)
-
-		if exists && len(childLabels) > 0 {
-			if idx < len(rootLabelIndex) {
-				fmt.Printf("  %s ", "\u2502")
-			} else {
-				fmt.Printf("    ")
-			}
-			sort.Strings(childLabels)
-			for cidx, childLabel := range childLabels {
-				if cidx == 0 {
-					if len(childLabels) == 1 {
-						fmt.Printf("      %s %s\n", branchSingleEnd, childLabel)
-					} else {
-						fmt.Printf("      %s %s\n", branchSingle, childLabel)
-					}
-				} else if cidx < len(childLabels)-1 {
-					fmt.Printf("  %s       %s %s\n", "\u2502", branchSingle, childLabel)
-				} else {
-					fmt.Printf("  %s       %s %s\n", "\u2502", branchSingleEnd, childLabel)
-				}
-			}
-		}
-		if idx < len(rootLabelIndex) {
-			fmt.Printf("  %s\n", "\u2502")
-		} else {
-			fmt.Println("")
-		}
-	}
+func (lifecycle *channelLifecycle) GetChannelDetails(name string) map[string]interface{} {
+	stuff := rpc.requestFuction("channel.software.getDetails", rpc.session, name)
+	return stuff.(map[string]interface{})
 }
 
 // Find what workflow currently is used and setup the phases
-func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
-	currentWorkflowName := ctx.String("workflow")
+func (lifecycle *channelLifecycle) setCurrentWorkflow() *channelLifecycle {
+	currentWorkflowName := lifecycle.ctx.String("workflow")
 	if funk.Contains([]string{"", "default"}, currentWorkflowName) {
 		currentWorkflowName = "default"
 	}
-	configuredWorkflow := lifecycle.getWorkflowConfig(currentWorkflowName, ctx)
+	configuredWorkflow := lifecycle.getWorkflowConfig(currentWorkflowName)
 	if len(*configuredWorkflow) == 0 {
 		Logger.Debug("Using preset default workflow: \"dev\", \"uat\", \"prod\".")
 		lifecycle.phases = []string{"dev", "uat", "prod"}
@@ -372,37 +291,39 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow(ctx *cli.Context) {
 			lifecycle.phasesDelimiter = "-"
 		}
 	}
+	return lifecycle
 }
 
 // Set flags from CLI and configuration about current runtime session
-func (lifecycle *channelLifecycle) setCurrentConfig(ctx *cli.Context) {
-	if ctx.GlobalBool("quiet") && ctx.GlobalBool("verbose") {
+func (lifecycle *channelLifecycle) setCurrentConfig() *channelLifecycle {
+	if lifecycle.ctx.GlobalBool("quiet") && lifecycle.ctx.GlobalBool("verbose") {
 		Console.exitOnUnknown("Don't know how to be quietly verbose.")
 	}
 
-	Logger = *LoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
-		!ctx.GlobalBool("quiet"), ctx.GlobalBool("verbose"))
+	Logger = *LoggerController(lifecycle.ctx.GlobalBool("verbose"), lifecycle.ctx.GlobalBool("verbose"),
+		!lifecycle.ctx.GlobalBool("quiet"), lifecycle.ctx.GlobalBool("verbose"))
 	Logger.Debug("Configuration set")
+
+	return lifecycle
 }
 
 // Entry action for the managing channel lifecycle sub-app
 func manageChannelLifecycle(ctx *cli.Context) error {
-	lifecycle := ChannelLifecycle()
-	lifecycle.setCurrentConfig(ctx)
-	lifecycle.setCurrentWorkflow(ctx)
+	lifecycle := NewChannelLifecycle(ctx).setCurrentConfig().setCurrentWorkflow()
 
 	if ctx.Bool("list-workflows") {
 		lifecycle.ListWorkflows(ctx)
-	} else if ctx.Bool("list-channels") {
-		lifecycle.ListChannels(ctx)
 	} else if ctx.Bool("promote") || ctx.Bool("init") {
+
 		channelToPromote := ctx.String("channel")
 		if channelToPromote == "" {
 			Console.exitOnUnknown("Channel required.")
 		}
-		lifecycle.ChannelExists(channelToPromote)
+		details := lifecycle.GetChannelDetails(channelToPromote)
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
+		lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
+		InfoCmd(ctx).setCurrentConfig(ctx).ChannelDetails(promotedChannelName)
 	} else {
 		Console.exitOnUnknown("Don't know what to do.")
 	}
