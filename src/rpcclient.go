@@ -57,13 +57,20 @@ func (client *rpcClient) auth() {
 	Console.checkError(client.storeSession())
 }
 
+// Check if login is required
+func (client *rpcClient) isAuthRequired(err error) bool {
+	// Detect auth failure error in Uyuni :-)
+	// Better detection, perhaps?
+	return strings.Contains(err.Error(), "Could not find translator for class java.lang.String to interface com.redhat.rhn.domain.user.User") ||
+		strings.Contains(err.Error(), "com.redhat.rhn.common.hibernate.LookupException: Could not find session with id")
+}
+
 // Request a function call on the remote
 func (client *rpcClient) requestFuction(name string, args ...interface{}) (v interface{}) {
 	var result interface{}
 	err := client.connection.Call(name, args, &result)
 
-	if err != nil && strings.Contains(err.Error(),
-		"Could not find translator for class java.lang.String to interface com.redhat.rhn.domain.user.User") { // Detect auth failure error in Uyuni :-)
+	if err != nil && client.isAuthRequired(err) {
 		client.auth()
 		// Repeat it again with replaced first element, which is always session token
 		nArgs := make([]interface{}, len(args))
