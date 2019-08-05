@@ -1,18 +1,21 @@
-package main
+package app_info
 
 import (
 	"fmt"
 	"github.com/aybabtme/rgbterm"
 	"github.com/isbm/asciitable"
+	"github.com/isbm/spaceman/lib/outputters"
+	"github.com/isbm/spaceman/lib/utils"
 	"github.com/thoas/go-funk"
 	"gopkg.in/urfave/cli.v1"
 	"sort"
 )
 
-var infoCmdFlags []cli.Flag
+var Logger utils.LoggerController
+var InfoCmdFlags []cli.Flag
 
 func init() {
-	infoCmdFlags = []cli.Flag{
+	InfoCmdFlags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "c, channel",
 			Usage: "Get information about specified channel",
@@ -41,7 +44,7 @@ func (nfo *infoCmd) ChannelDetails(channel string) {
 	if channel == "" {
 		channel = nfo.cliArgs.String("channel")
 	}
-	out := rpc.requestFuction("channel.software.getDetails", rpc.session, channel)
+	out := utils.RPC.RequestFuction("channel.software.getDetails", utils.RPC.GetSession(), channel)
 
 	fmt.Printf("\nDetails of channel \"%s\":\n", channel)
 	contentSources := nfo.printMapInfo(out.(map[string]interface{}))
@@ -59,7 +62,7 @@ func (nfo *infoCmd) ChannelDetails(channel string) {
 // List available channels tree
 func (nfo *infoCmd) ListAvailableChannels() {
 	Logger.Info("List channels")
-	out := rpc.requestFuction("channel.listSoftwareChannels", rpc.session)
+	out := utils.RPC.RequestFuction("channel.listSoftwareChannels", utils.RPC.GetSession())
 	tree := make(map[string][]string)
 
 	for _, dat := range out.([]interface{}) {
@@ -77,17 +80,17 @@ func (nfo *infoCmd) ListAvailableChannels() {
 	}
 
 	if len(tree) == 0 {
-		Console.exitOnStderr("No channels has been found")
+		utils.Console.ExitOnStderr("No channels has been found")
 	} else {
-		NewAnsiCLI().Tree(tree)
+		outputters.NewAnsiCLI().Tree(tree)
 	}
 }
 
 // Print channel info to the STDOUT
 func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interface{} {
 	unprocessedData := make(map[string]interface{})
-	activeLabelMaker := NewLabels(true, 0xff, 0xff, 0)
-	passiveLabelMaker := NewLabels(true, 0x80, 0x80, 0x80)
+	activeLabelMaker := utils.NewLabels(true, 0xff, 0xff, 0)
+	passiveLabelMaker := utils.NewLabels(true, 0x80, 0x80, 0x80)
 
 	dataNames := make([]string, len(data))
 	idx := 0
@@ -109,9 +112,9 @@ func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interfa
 		default:
 			if descr == nil {
 				descr = rgbterm.FgString("n/a", 0x80, 0x80, 0x80)
-				name = passiveLabelMaker.mapKeyToLabel(name)
+				name = passiveLabelMaker.MapKeyToLabel(name)
 			} else {
-				name = activeLabelMaker.mapKeyToLabel(name)
+				name = activeLabelMaker.MapKeyToLabel(name)
 			}
 
 			tableDataContainer.AddRow(name, descr)
@@ -139,12 +142,12 @@ func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interfa
 }
 
 // Set flags from CLI and configuration about current runtime session
-func (nfo *infoCmd) setCurrentConfig(ctx *cli.Context) *infoCmd {
+func (nfo *infoCmd) SetCurrentConfig(ctx *cli.Context) *infoCmd {
 	if ctx.GlobalBool("quiet") && ctx.GlobalBool("verbose") {
-		Console.exitOnUnknown("Don't know how to be quietly verbose.")
+		utils.Console.ExitOnUnknown("Don't know how to be quietly verbose.")
 	}
 
-	Logger = *LoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
+	Logger = *utils.NewLoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
 		!ctx.GlobalBool("quiet"), ctx.GlobalBool("verbose"))
 	Logger.Debug("Configuration set")
 
@@ -152,14 +155,14 @@ func (nfo *infoCmd) setCurrentConfig(ctx *cli.Context) *infoCmd {
 }
 
 // Entry action for the info sub-app
-func mainInfoCmd(ctx *cli.Context) error {
-	nfo := InfoCmd(ctx).setCurrentConfig(ctx)
+func MainInfoCmd(ctx *cli.Context) error {
+	nfo := InfoCmd(ctx).SetCurrentConfig(ctx)
 	if ctx.String("channel") != "" {
 		nfo.ChannelDetails("")
 	} else if ctx.Bool("list-channels") {
 		nfo.ListAvailableChannels()
 	} else {
-		Console.exitOnUnknown("Don't know what kind of info you would like to have.")
+		utils.Console.ExitOnUnknown("Don't know what kind of info you would like to have.")
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"fmt"
@@ -14,15 +14,15 @@ const (
 	_fatal
 )
 
-type loggerController struct {
+type LoggerController struct {
 	errors   bool
 	warnings bool
 	infos    bool
 	debugs   bool
 }
 
-func LoggerController(nfo bool, warn bool, err bool, dbg bool) *loggerController {
-	controller := new(loggerController)
+func NewLoggerController(nfo bool, warn bool, err bool, dbg bool) *LoggerController {
+	controller := new(LoggerController)
 	controller.errors = err
 	controller.infos = nfo
 	controller.warnings = warn
@@ -32,7 +32,7 @@ func LoggerController(nfo bool, warn bool, err bool, dbg bool) *loggerController
 }
 
 // Put an information to the logger
-func (logger *loggerController) put(level int, message string, args ...string) {
+func (logger *LoggerController) put(level int, message string, args ...string) {
 	var prefix string
 	switch level {
 	case _info:
@@ -46,7 +46,7 @@ func (logger *loggerController) put(level int, message string, args ...string) {
 	case _fatal:
 		prefix = "FATAL"
 	default:
-		Console.exitOnStderr(fmt.Sprintf("Unknown logging level: %d", level))
+		Console.ExitOnStderr(fmt.Sprintf("Unknown logging level: %d", level))
 	}
 
 	if len(args) > 0 {
@@ -64,34 +64,34 @@ func (logger *loggerController) put(level int, message string, args ...string) {
 }
 
 // Log info level
-func (logger *loggerController) Info(message string, args ...string) {
+func (logger *LoggerController) Info(message string, args ...string) {
 	if logger.infos {
 		logger.put(_info, message, args...)
 	}
 }
 
 // Log warning level
-func (logger *loggerController) Warning(message string, args ...string) {
+func (logger *LoggerController) Warning(message string, args ...string) {
 	if logger.warnings {
 		logger.put(_warning, message, args...)
 	}
 }
 
 // Log error level
-func (logger *loggerController) Error(message string, args ...string) {
+func (logger *LoggerController) Error(message string, args ...string) {
 	if logger.errors {
 		logger.put(_error, message, args...)
 	}
 }
 
 // Log debug level
-func (logger *loggerController) Debug(message string, args ...string) {
+func (logger *LoggerController) Debug(message string, args ...string) {
 	if logger.debugs {
 		logger.put(_debug, message, args...)
 	}
 }
 
 // Log fatal message and quit
-func (logger *loggerController) Fatal(message string, args ...string) {
+func (logger *LoggerController) Fatal(message string, args ...string) {
 	logger.put(_fatal, message, args...)
 }

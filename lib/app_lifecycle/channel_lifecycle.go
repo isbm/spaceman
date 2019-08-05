@@ -1,18 +1,20 @@
-package main
+package app_lifecycle
 
 import (
 	"fmt"
 	"github.com/aybabtme/rgbterm"
+	"github.com/isbm/spaceman/lib/app_info"
+	"github.com/isbm/spaceman/lib/utils"
 	"github.com/thoas/go-funk"
 	"gopkg.in/urfave/cli.v1"
 	"strings"
 )
 
-var Logger loggerController
-var channelLifecycleFlags []cli.Flag
+var Logger utils.LoggerController
+var ChannelLifecycleFlags []cli.Flag
 
 func init() {
-	channelLifecycleFlags = []cli.Flag{
+	ChannelLifecycleFlags = []cli.Flag{
 		cli.BoolFlag{
 			Name:   "init",
 			Usage:  "initialise a development channel",
@@ -109,18 +111,18 @@ func NewChannelLifecycle(context *cli.Context) *channelLifecycle {
 func (lifecycle *channelLifecycle) promoteChannel(channelName string, init bool) string {
 	currentPhase := lifecycle.extractPhaseName(channelName)
 	if currentPhase == "" && !init {
-		Console.exitOnStderr("Unable to get phase")
+		utils.Console.ExitOnStderr("Unable to get phase")
 	}
 	nextPhase := lifecycle.getNextPhase(currentPhase, init)
 
 	if nextPhase != "" && !init {
 		channelName = fmt.Sprintf("%s%s%s", nextPhase, lifecycle.phasesDelimiter, channelName[len(currentPhase)+1:])
 	} else if nextPhase != "" && currentPhase != "" && init {
-		Console.exitOnStderr("Channel is already initalised. Please just promote it.")
+		utils.Console.ExitOnStderr("Channel is already initalised. Please just promote it.")
 	} else if nextPhase != "" && currentPhase == "" && init {
 		channelName = fmt.Sprintf("%s%s%s", nextPhase, lifecycle.phasesDelimiter, channelName)
 	} else {
-		Console.exitOnStderr("Unable to promote channel.")
+		utils.Console.ExitOnStderr("Unable to promote channel.")
 	}
 
 	return channelName
@@ -151,12 +153,12 @@ func (lifecycle *channelLifecycle) CloneChannel(labelSrc string, labelDst string
 	}
 
 	Logger.Debug("Getting details about channel \"%s\"", sourceChannelLabel.(string))
-	rpc.requestFuction("channel.software.clone", rpc.session, sourceChannelLabel, cloneDetails, false)
+	utils.RPC.RequestFuction("channel.software.clone", utils.RPC.GetSession(), sourceChannelLabel, cloneDetails, false)
 }
 
 // List available workflows
 func (lifecycle *channelLifecycle) ListWorkflows(ctx *cli.Context) {
-	configSections := configuration.getConfig(ctx, "lifecycle")
+	configSections := utils.Configuration.GetConfig(ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
 		workflowsConfig, exist := lifecycleConfig["workflows"]
@@ -226,7 +228,7 @@ func (lifecycle *channelLifecycle) getNextPhase(currentPhase string, init bool) 
 // Get workflow configuration or return default one.
 func (lifecycle *channelLifecycle) getWorkflowConfig(name string) *map[string]interface{} {
 	currentWorkflow := make(map[string]interface{})
-	configSections := configuration.getConfig(lifecycle.ctx, "lifecycle")
+	configSections := utils.Configuration.GetConfig(lifecycle.ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
 		workflowsConfig, exist := lifecycleConfig["workflows"]
@@ -246,7 +248,7 @@ func (lifecycle *channelLifecycle) getWorkflowConfig(name string) *map[string]in
 
 // Check if specified channel exists
 func (lifecycle *channelLifecycle) GetChannelDetails(name string) map[string]interface{} {
-	stuff := rpc.requestFuction("channel.software.getDetails", rpc.session, name)
+	stuff := utils.RPC.RequestFuction("channel.software.getDetails", utils.RPC.GetSession(), name)
 	return stuff.(map[string]interface{})
 }
 
@@ -297,10 +299,10 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow() *channelLifecycle {
 // Set flags from CLI and configuration about current runtime session
 func (lifecycle *channelLifecycle) setCurrentConfig() *channelLifecycle {
 	if lifecycle.ctx.GlobalBool("quiet") && lifecycle.ctx.GlobalBool("verbose") {
-		Console.exitOnUnknown("Don't know how to be quietly verbose.")
+		utils.Console.ExitOnUnknown("Don't know how to be quietly verbose.")
 	}
 
-	Logger = *LoggerController(lifecycle.ctx.GlobalBool("verbose"), lifecycle.ctx.GlobalBool("verbose"),
+	Logger = *utils.NewLoggerController(lifecycle.ctx.GlobalBool("verbose"), lifecycle.ctx.GlobalBool("verbose"),
 		!lifecycle.ctx.GlobalBool("quiet"), lifecycle.ctx.GlobalBool("verbose"))
 	Logger.Debug("Configuration set")
 
@@ -308,7 +310,7 @@ func (lifecycle *channelLifecycle) setCurrentConfig() *channelLifecycle {
 }
 
 // Entry action for the managing channel lifecycle sub-app
-func manageChannelLifecycle(ctx *cli.Context) error {
+func ManageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := NewChannelLifecycle(ctx).setCurrentConfig().setCurrentWorkflow()
 
 	if ctx.Bool("list-workflows") {
@@ -317,15 +319,15 @@ func manageChannelLifecycle(ctx *cli.Context) error {
 
 		channelToPromote := ctx.String("channel")
 		if channelToPromote == "" {
-			Console.exitOnUnknown("Channel required.")
+			utils.Console.ExitOnUnknown("Channel required.")
 		}
 		details := lifecycle.GetChannelDetails(channelToPromote)
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
 		lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
-		InfoCmd(ctx).setCurrentConfig(ctx).ChannelDetails(promotedChannelName)
+		app_info.InfoCmd(ctx).SetCurrentConfig(ctx).ChannelDetails(promotedChannelName)
 	} else {
-		Console.exitOnUnknown("Don't know what to do.")
+		utils.Console.ExitOnUnknown("Don't know what to do.")
 	}
 
 	return nil

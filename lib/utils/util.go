@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ func NewLabels(addColon bool, r, g, b uint8) *labels {
 	return lbl
 }
 
-func (lbl *labels) mapKeyToLabel(label string) string {
+func (lbl *labels) MapKeyToLabel(label string) string {
 	unCamel, _ := regexp.Compile(`([A-Z]+)`)
 	descore, _ := regexp.Compile(`[_]`)
 	label = strings.Title(strings.ToLower(strings.TrimSpace(unCamel.ReplaceAllString(label, " $1"))))
@@ -48,7 +48,7 @@ func (lbl *labels) mapKeyToLabel(label string) string {
 }
 
 // Set coloring
-func (lbl *labels) setColored(isColored bool) {
+func (lbl *labels) SetColored(isColored bool) {
 	lbl.colored = isColored
 }
 
@@ -65,19 +65,19 @@ func NewConsole() *console {
 }
 
 // Error checking
-func (cns *console) checkError(err error) {
+func (cns *console) CheckError(err error) {
 	if err != nil {
-		cns.exitOnStderr(err.Error())
+		cns.ExitOnStderr(err.Error())
 	}
 }
 
-func (cns *console) exitOnStderr(message string) {
+func (cns *console) ExitOnStderr(message string) {
 	os.Stderr.WriteString(fmt.Sprintf("Error: %s\n", message))
 	os.Exit(1)
 }
 
-func (cns *console) exitOnUnknown(message string) {
-	cns.exitOnStderr(fmt.Sprintf("%s %s", message, cns.hint))
+func (cns *console) ExitOnUnknown(message string) {
+	cns.ExitOnStderr(fmt.Sprintf("%s %s", message, cns.hint))
 }
 
 // Console instance

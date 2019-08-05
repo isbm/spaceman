@@ -1,10 +1,12 @@
 package main
 
 import (
+	"github.com/isbm/spaceman/lib/app_info"
+	"github.com/isbm/spaceman/lib/app_lifecycle"
+	"github.com/isbm/spaceman/lib/utils"
+	"gopkg.in/urfave/cli.v1"
 	"log"
 	"os"
-
-	"gopkg.in/urfave/cli.v1"
 )
 
 func main() {
@@ -14,7 +16,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "config",
-			Value: configuration.used,
+			Value: utils.Configuration.GetDefaultConfigFile(),
 			Usage: "Configuration file",
 		},
 		cli.BoolFlag{
@@ -34,15 +36,15 @@ func main() {
 			Name:    "lifecycle",
 			Aliases: []string{"lc"},
 			Usage:   "Manage channel lifecycle",
-			Action:  manageChannelLifecycle,
-			Flags:   channelLifecycleFlags,
+			Action:  app_lifecycle.ManageChannelLifecycle,
+			Flags:   app_lifecycle.ChannelLifecycleFlags,
 		},
 		{
 			Name:    "info",
 			Aliases: []string{"in"},
 			Usage:   "Information about channels, packages, machines etc.",
-			Action:  mainInfoCmd,
-			Flags:   infoCmdFlags,
+			Action:  app_info.MainInfoCmd,
+			Flags:   app_info.InfoCmdFlags,
 		},
 	}
 

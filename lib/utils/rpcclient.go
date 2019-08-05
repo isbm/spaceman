@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"crypto/tls"
@@ -25,7 +25,7 @@ func RPCClient(url string, user string, password string, insecure bool) *rpcClie
 	client.url = url
 	client.user = user
 	client.password = password
-	client.session, _ = client.getSession()
+	client.session = client.GetSession()
 	client.connection, _ = xmlrpc.NewClient(client.url, &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}})
 
 	return client
@@ -33,28 +33,27 @@ func RPCClient(url string, user string, password string, insecure bool) *rpcClie
 
 // Store session into the file
 func (client *rpcClient) storeSession() error {
-	return ioutil.WriteFile(configuration.session, []byte(client.session+"\n"), 0600)
+	return ioutil.WriteFile(Configuration.GetSessionConfFilePath(), []byte(client.session+"\n"), 0600)
 }
 
 // Get stored session
-func (client *rpcClient) getSession() (string, error) {
-	var err error
+func (client *rpcClient) GetSession() string {
 	var session string
-	if !fileExists(configuration.session) {
+	if !fileExists(Configuration.GetSessionConfFilePath()) {
 		session = ""
-		err = errors.New("Session file does not exists")
+		Console.CheckError(errors.New("Session file does not exists"))
 	} else {
-		data, err := ioutil.ReadFile(configuration.session)
-		Console.checkError(err)
+		data, err := ioutil.ReadFile(Configuration.GetSessionConfFilePath())
+		Console.CheckError(err)
 		session = strings.TrimSpace(string(data))
 	}
 
-	return session, err
+	return session
 }
 
 func (client *rpcClient) auth() {
-	client.session = client.requestFuction("auth.login", client.user, client.password).(string)
-	Console.checkError(client.storeSession())
+	client.session = client.RequestFuction("auth.login", client.user, client.password).(string)
+	Console.CheckError(client.storeSession())
 }
 
 // Check if login is required
@@ -66,7 +65,7 @@ func (client *rpcClient) isAuthRequired(err error) bool {
 }
 
 // Request a function call on the remote
-func (client *rpcClient) requestFuction(name string, args ...interface{}) (v interface{}) {
+func (client *rpcClient) RequestFuction(name string, args ...interface{}) (v interface{}) {
 	var result interface{}
 	err := client.connection.Call(name, args, &result)
 
@@ -75,16 +74,16 @@ func (client *rpcClient) requestFuction(name string, args ...interface{}) (v int
 		// Repeat it again with replaced first element, which is always session token
 		nArgs := make([]interface{}, len(args))
 		nArgs[0] = client.session
-		Console.checkError(client.connection.Call(name, nArgs, &result))
+		Console.CheckError(client.connection.Call(name, nArgs, &result))
 	} else {
-		Console.checkError(err)
+		Console.CheckError(err)
 	}
 
 	return result
 }
 
-var rpc rpcClient
+var RPC rpcClient
 
 func init() {
-	rpc = *RPCClient("https://suma-refhead-srv.mgr.suse.de/rpc/api", "admin", "admin", true) // XXX: todo get creds from the STDIN
+	RPC = *RPCClient("https://suma-refhead-srv.mgr.suse.de/rpc/api", "admin", "admin", true) // XXX: todo get creds from the STDIN
 }
