@@ -2,15 +2,13 @@ package utils
 
 import (
 	"fmt"
+	"github.com/smallfish/simpleyaml"
+	"gopkg.in/urfave/cli.v1"
 	"io/ioutil"
 	"log"
 	"os/user"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/urfave/cli.v1"
-
-	"github.com/smallfish/simpleyaml"
 )
 
 /*

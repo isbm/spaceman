@@ -2,11 +2,10 @@ package utils
 
 import (
 	"fmt"
+	"github.com/aybabtme/rgbterm"
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/aybabtme/rgbterm"
 )
 
 // Check if file exists

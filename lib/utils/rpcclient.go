@@ -3,11 +3,10 @@ package utils
 import (
 	"crypto/tls"
 	"errors"
+	"github.com/kolo/xmlrpc"
 	"io/ioutil"
 	"net/http"
 	"strings"
-
-	"github.com/kolo/xmlrpc"
 )
 
 // RPC client object to call the XML-RPC server
