@@ -1,4 +1,4 @@
-package main
+package outputters
 
 type Output interface {
 	Tree()

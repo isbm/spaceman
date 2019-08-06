@@ -20,7 +20,7 @@ all:
 
 build:
 	@echo "Building binary..."
-	$(GOBUILD) -o bin/spaceman src/*.go
+	$(GOBUILD) -o bin/spaceman spaceman.go
 	strip --strip-unneeded bin/spaceman
 
 test:

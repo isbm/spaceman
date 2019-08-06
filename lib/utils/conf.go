@@ -1,16 +1,14 @@
-package main
+package utils
 
 import (
 	"fmt"
+	"github.com/smallfish/simpleyaml"
+	"gopkg.in/urfave/cli.v1"
 	"io/ioutil"
 	"log"
 	"os/user"
 	"path/filepath"
 	"strings"
-
-	"gopkg.in/urfave/cli.v1"
-
-	"github.com/smallfish/simpleyaml"
 )
 
 /*
@@ -24,7 +22,7 @@ type configFiles struct {
 }
 
 // Config object constructor
-func Config() *configFiles {
+func NewConfig() *configFiles {
 	cfg := new(configFiles)
 	cfg.global = "/etc/rhn/spaceman.conf"
 	cfg.local = cfg.expandPath("~/.config/spaceman/config.conf")
@@ -43,14 +41,24 @@ func (cfg *configFiles) expandPath(path string) string {
 	return path
 }
 
+// Return default configuration file
+func (cfg *configFiles) GetDefaultConfigFile() string {
+	return cfg.used
+}
+
 // Return current configuration file
-func (cfg *configFiles) getConfigFile(ctx *cli.Context) string {
+func (cfg *configFiles) GetConfigFile(ctx *cli.Context) string {
 	custom := ctx.GlobalString("config")
 	if custom != "" {
 		cfg.used = custom
 	}
 
 	return cfg.used
+}
+
+// Returns path of the session config
+func (cfg *configFiles) GetSessionConfFilePath() string {
+	return cfg.session
 }
 
 func (cfg *configFiles) checkFail(err error, message string) {
@@ -60,8 +68,8 @@ func (cfg *configFiles) checkFail(err error, message string) {
 	}
 }
 
-func (cfg *configFiles) getConfig(ctx *cli.Context, sections ...string) *map[string]interface{} {
-	filename := cfg.getConfigFile(ctx)
+func (cfg *configFiles) GetConfig(ctx *cli.Context, sections ...string) *map[string]interface{} {
+	filename := cfg.GetConfigFile(ctx)
 	if filename != "" {
 		filename = cfg.expandPath(filename)
 		source, err := ioutil.ReadFile(filename)
@@ -90,8 +98,8 @@ func (cfg *configFiles) getConfig(ctx *cli.Context, sections ...string) *map[str
 	panic("Unable to obtain configuration")
 }
 
-var configuration configFiles
+var Configuration configFiles
 
 func init() {
-	configuration = *Config()
+	Configuration = *NewConfig()
 }
