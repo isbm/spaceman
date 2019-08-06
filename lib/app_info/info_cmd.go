@@ -30,19 +30,19 @@ func init() {
 
 type infoCmd struct {
 	verbose bool
-	cliArgs *cli.Context
+	ctx     *cli.Context
 }
 
 // ChannelLifecycle constructor
-func InfoCmd(ctx *cli.Context) *infoCmd {
+func NewInfoCmd(ctx *cli.Context) *infoCmd {
 	nfo := new(infoCmd)
-	nfo.cliArgs = ctx
+	nfo.ctx = ctx
 	return nfo
 }
 
 func (nfo *infoCmd) ChannelDetails(channel string) {
 	if channel == "" {
-		channel = nfo.cliArgs.String("channel")
+		channel = nfo.ctx.String("channel")
 	}
 	out := utils.RPC.RequestFuction("channel.software.getDetails", utils.RPC.GetSession(), channel)
 
@@ -142,13 +142,13 @@ func (nfo *infoCmd) printMapInfo(data map[string]interface{}) map[string]interfa
 }
 
 // Set flags from CLI and configuration about current runtime session
-func (nfo *infoCmd) SetCurrentConfig(ctx *cli.Context) *infoCmd {
-	if ctx.GlobalBool("quiet") && ctx.GlobalBool("verbose") {
+func (nfo *infoCmd) SetCurrentConfig() *infoCmd {
+	if nfo.ctx.GlobalBool("quiet") && nfo.ctx.GlobalBool("verbose") {
 		utils.Console.ExitOnUnknown("Don't know how to be quietly verbose.")
 	}
 
-	Logger = *utils.NewLoggerController(ctx.GlobalBool("verbose"), ctx.GlobalBool("verbose"),
-		!ctx.GlobalBool("quiet"), ctx.GlobalBool("verbose"))
+	Logger = *utils.NewLoggerController(nfo.ctx.GlobalBool("verbose"), nfo.ctx.GlobalBool("verbose"),
+		!nfo.ctx.GlobalBool("quiet"), nfo.ctx.GlobalBool("verbose"))
 	Logger.Debug("Configuration set")
 
 	return nfo
@@ -156,7 +156,7 @@ func (nfo *infoCmd) SetCurrentConfig(ctx *cli.Context) *infoCmd {
 
 // Entry action for the info sub-app
 func MainInfoCmd(ctx *cli.Context) error {
-	nfo := InfoCmd(ctx).SetCurrentConfig(ctx)
+	nfo := NewInfoCmd(ctx).SetCurrentConfig()
 	if ctx.String("channel") != "" {
 		nfo.ChannelDetails("")
 	} else if ctx.Bool("list-channels") {

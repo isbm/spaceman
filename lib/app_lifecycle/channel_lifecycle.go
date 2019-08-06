@@ -157,8 +157,8 @@ func (lifecycle *channelLifecycle) CloneChannel(labelSrc string, labelDst string
 }
 
 // List available workflows
-func (lifecycle *channelLifecycle) ListWorkflows(ctx *cli.Context) {
-	configSections := utils.Configuration.GetConfig(ctx, "lifecycle")
+func (lifecycle *channelLifecycle) ListWorkflows() {
+	configSections := utils.Configuration.GetConfig(lifecycle.ctx, "lifecycle")
 	lifecycleConfig, exist := (*configSections)["lifecycle"].(map[interface{}]interface{})
 	if exist {
 		workflowsConfig, exist := lifecycleConfig["workflows"]
@@ -314,7 +314,7 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := NewChannelLifecycle(ctx).setCurrentConfig().setCurrentWorkflow()
 
 	if ctx.Bool("list-workflows") {
-		lifecycle.ListWorkflows(ctx)
+		lifecycle.ListWorkflows()
 	} else if ctx.Bool("promote") || ctx.Bool("init") {
 
 		channelToPromote := ctx.String("channel")
@@ -325,7 +325,7 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
 		lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
-		app_info.InfoCmd(ctx).SetCurrentConfig(ctx).ChannelDetails(promotedChannelName)
+		app_info.NewInfoCmd(ctx).SetCurrentConfig(ctx).ChannelDetails(promotedChannelName)
 	} else {
 		utils.Console.ExitOnUnknown("Don't know what to do.")
 	}
