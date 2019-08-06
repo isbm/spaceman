@@ -6,7 +6,7 @@ import (
 	"github.com/isbm/spaceman/lib/app_info"
 	"github.com/isbm/spaceman/lib/utils"
 	"github.com/thoas/go-funk"
-	"gopkg.in/urfave/cli.v1"
+	"github.com/urfave/cli"
 	"strings"
 )
 

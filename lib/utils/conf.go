@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 	"github.com/smallfish/simpleyaml"
-	"gopkg.in/urfave/cli.v1"
+	"github.com/urfave/cli"
 	"io/ioutil"
 	"log"
 	"os/user"
