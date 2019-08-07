@@ -326,7 +326,7 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
 		lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
-		app_info.NewInfoCmd(ctx).SetCurrentConfig(ctx).ChannelDetails(promotedChannelName)
+		app_info.NewInfoCmd(ctx).SetCurrentConfig().ChannelDetails(promotedChannelName)
 	} else {
 		utils.Console.ExitOnUnknown("Don't know what to do.")
 	}
