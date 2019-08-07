@@ -35,6 +35,11 @@ func init() {
 			Usage:  "rollback last operation",
 			Hidden: false,
 		},
+		cli.BoolFlag{
+			Name:   "m, merge",
+			Usage:  "merge to the existing channel, if it already exists",
+			Hidden: false,
+		},
 		cli.StringFlag{
 			Name:  "c, channel",
 			Usage: "use configured worflowdelimiter used between workflow and channel namechannel to init/promote/archive/rollback",
@@ -94,6 +99,7 @@ type channelLifecycle struct {
 	channel          string
 	phases           []string
 	excludedChannels []string
+	filterChannels   []string
 	phasesDelimiter  string
 	verbose          bool
 	ctx              *cli.Context
@@ -103,6 +109,7 @@ type channelLifecycle struct {
 func NewChannelLifecycle(context *cli.Context) *channelLifecycle {
 	lifecycle := new(channelLifecycle)
 	lifecycle.ctx = context
+	lifecycle.phasesDelimiter = "-"
 
 	return lifecycle
 }
@@ -126,6 +133,81 @@ func (lifecycle *channelLifecycle) promoteChannel(channelName string, init bool)
 	}
 
 	return channelName
+}
+
+// Check if the destination channel already exists and thus needs a merger instead of new cloning.
+func (lifecycle *channelLifecycle) needsMerge(labelDst string) bool {
+	needs := false
+	for _, channelData := range utils.RPC.RequestFuction("channel.listSoftwareChannels", utils.RPC.GetSession()).([]interface{}) {
+		label := channelData.(map[string]interface{})["label"].(string)
+		if label == labelDst {
+			needs = true
+		}
+	}
+
+	return needs
+}
+
+// Tell if the channel is filtered-out
+func (lifecycle *channelLifecycle) isFiltered(label string) string {
+	prefix := ""
+	for _, channelPrefix := range lifecycle.filterChannels {
+		if strings.HasPrefix(label, channelPrefix) {
+			prefix = channelPrefix
+			break
+		}
+	}
+	return prefix
+}
+
+// Tell if the channel is excluded
+func (lifecycle *channelLifecycle) isExcluded(label string) string {
+	exclusion := ""
+	for _, excl := range lifecycle.excludedChannels {
+		if strings.Contains(label, excl) {
+			exclusion = excl
+			break
+		}
+	}
+	return exclusion
+}
+
+// Merge channels
+func (lifecycle *channelLifecycle) MergeChannels(labelSrc string, labelDst string) {
+	if prefix := lifecycle.isFiltered(labelDst); prefix != "" {
+		utils.Console.ExitOnStderr(fmt.Sprintf("Channel \"%s\" is filtered-out in this workflow.",
+			strings.Replace(labelSrc, prefix, rgbterm.FgString(prefix, 0xff, 0xff, 0), 1)))
+	} else if excl := lifecycle.isExcluded(labelSrc); excl != "" {
+		utils.Console.ExitOnStderr(fmt.Sprintf("Channel \"%s\" is marked as excluded by this workflow.",
+			strings.ReplaceAll(labelSrc, excl, rgbterm.FgString(excl, 0xff, 0xff, 0))))
+	}
+	if lifecycle.ctx.Bool("clear-channel") || lifecycle.ctx.Bool("rollback") {
+		lifecycle.ClearChannel(labelDst)
+	}
+	Logger.Info("Merging errata from channel \"%s\" to channel \"%s\"", labelSrc, labelDst)
+	utils.RPC.RequestFuction("channel.software.mergeErrata", utils.RPC.GetSession(), labelSrc, labelDst)
+	//Logger.Info("Added %i packages", len(packageList))
+
+	Logger.Info("Merging packages from channel \"%s\" to channel \"%s\"", labelSrc, labelDst)
+	utils.RPC.RequestFuction("channel.software.mergePackages", utils.RPC.GetSession(), labelSrc, labelDst)
+}
+
+// Clears all the errata in this channel
+func (lifecycle *channelLifecycle) ClearChannel(label string) {
+	Logger.Debug("Clear all errata from \"%s\"", label)
+	buff := make([]string, 0)
+	for _, errata := range utils.RPC.RequestFuction("channel.software.listErrata", utils.RPC.GetSession(), label).([]interface{}) {
+		buff = append(buff, errata.(map[string]interface{})["advisory_name"].(string))
+	}
+	utils.RPC.RequestFuction("channel.software.removeErrata", utils.RPC.GetSession(), label, buff, false)
+	buff = nil
+
+	Logger.Debug("Remove all packages from \"%s\"", label)
+	for _, pkg := range utils.RPC.RequestFuction("channel.software.listAllPackages", utils.RPC.GetSession(), label).([]interface{}) {
+		buff = append(buff, pkg.(map[string]interface{})["id"].(string))
+	}
+	utils.RPC.RequestFuction("channel.software.removePackages", utils.RPC.GetSession(), label, buff)
+
 }
 
 // Clone channel by label
@@ -282,7 +364,17 @@ func (lifecycle *channelLifecycle) setCurrentWorkflow() *channelLifecycle {
 				lifecycle.excludedChannels[i] = v.(string)
 			}
 		} else {
-			Logger.Info("No channels configured to be excluded according to this workflow")
+			Logger.Info("No channels configured to be excluded, according to this workflow")
+		}
+
+		cfgFilter, configured := (*configuredWorkflow)[currentWorkflowName].(map[interface{}]interface{})["filter"]
+		if configured && cfgFilter != nil {
+			lifecycle.filterChannels = make([]string, len(cfgFilter.([]interface{})))
+			for i, v := range cfgFilter.([]interface{}) {
+				lifecycle.filterChannels[i] = v.(string)
+			}
+		} else {
+			Logger.Info("No channels configured to be filtered by prefix, according to this workflow")
 		}
 
 		// Set delimiter
@@ -324,7 +416,13 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 		}
 		details := lifecycle.GetChannelDetails(channelToPromote)
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
-		lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
+
+		if lifecycle.needsMerge(promotedChannelName) {
+			lifecycle.MergeChannels(channelToPromote, promotedChannelName)
+		} else {
+			lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
+		}
+
 		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
 		app_info.NewInfoCmd(ctx).SetCurrentConfig().ChannelDetails(promotedChannelName)
 	} else {
