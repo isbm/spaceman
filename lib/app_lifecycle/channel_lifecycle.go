@@ -8,6 +8,7 @@ import (
 	"github.com/thoas/go-funk"
 	"github.com/urfave/cli"
 	"strings"
+	"time"
 )
 
 var Logger utils.LoggerController
@@ -236,6 +237,19 @@ func (lifecycle *channelLifecycle) CloneChannel(labelSrc string, labelDst string
 
 	Logger.Debug("Getting details about channel \"%s\"", sourceChannelLabel.(string))
 	utils.RPC.RequestFuction("channel.software.clone", utils.RPC.GetSession(), sourceChannelLabel, cloneDetails, false)
+}
+
+// MakeArchiveLabel creates label with "archive-YYYYMMDD" prefix
+func (lifecycle *channelLifecycle) MakeArchiveLabel(labelSrc string) (string, error) {
+	var err error
+	var label string
+	if strings.HasPrefix(labelSrc, "archive-") {
+		err = fmt.Errorf("The channel \"%s\" seems already archived", labelSrc)
+	} else {
+		current := time.Now()
+		label = fmt.Sprintf("archive-%d%02d%02d-%s", current.Year(), current.Month(), current.Day(), labelSrc)
+	}
+	return label, err
 }
 
 // List available workflows
