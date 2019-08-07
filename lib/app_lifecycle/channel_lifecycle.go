@@ -418,14 +418,16 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := NewChannelLifecycle(ctx).setCurrentConfig().setCurrentWorkflow()
 	utils.RPC.Connect((*utils.Configuration.GetConfig(ctx, "server")))
 
+	if ctx.Bool("promote") || ctx.Bool("init") || ctx.Bool("archive") {
+		if ctx.String("channel") == "" {
+			utils.Console.ExitOnUnknown("Channel required.")
+		}
+	}
+
 	if ctx.Bool("list-workflows") {
 		lifecycle.ListWorkflows()
 	} else if ctx.Bool("promote") || ctx.Bool("init") {
-
 		channelToPromote := ctx.String("channel")
-		if channelToPromote == "" {
-			utils.Console.ExitOnUnknown("Channel required.")
-		}
 		details := lifecycle.GetChannelDetails(channelToPromote)
 		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
 
