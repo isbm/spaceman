@@ -312,6 +312,7 @@ func (lifecycle *channelLifecycle) setCurrentConfig() *channelLifecycle {
 // Entry action for the managing channel lifecycle sub-app
 func ManageChannelLifecycle(ctx *cli.Context) error {
 	lifecycle := NewChannelLifecycle(ctx).setCurrentConfig().setCurrentWorkflow()
+	utils.RPC.Connect((*utils.Configuration.GetConfig(ctx, "server")))
 
 	if ctx.Bool("list-workflows") {
 		lifecycle.ListWorkflows()

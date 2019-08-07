@@ -157,6 +157,7 @@ func (nfo *infoCmd) SetCurrentConfig() *infoCmd {
 // Entry action for the info sub-app
 func MainInfoCmd(ctx *cli.Context) error {
 	nfo := NewInfoCmd(ctx).SetCurrentConfig()
+	utils.RPC.Connect((*utils.Configuration.GetConfig(ctx, "server")))
 	if ctx.String("channel") != "" {
 		nfo.ChannelDetails("")
 	} else if ctx.Bool("list-channels") {

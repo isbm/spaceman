@@ -16,16 +16,53 @@ type rpcClient struct {
 	password   string
 	session    string
 	connection *xmlrpc.Client
+	inUse      bool
 }
 
 // RPCClient object constructor
-func RPCClient(url string, user string, password string, insecure bool) *rpcClient {
+func RPCClient() *rpcClient {
 	client := new(rpcClient)
-	client.url = url
-	client.user = user
-	client.password = password
 	client.session = client.GetSession()
-	client.connection, _ = xmlrpc.NewClient(client.url, &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}})
+	client.inUse = false
+
+	return client
+}
+
+func (client *rpcClient) Connect(config map[string]interface{}) *rpcClient {
+	serverConfig, exist := config["server"].(map[interface{}]interface{})
+	if !exist {
+		Console.CheckError(errors.New("Server configuration section is missing."))
+	}
+
+	url, exist := serverConfig["url"].(string)
+	if !exist {
+		Console.CheckError(errors.New("Server URL must be defined in 'server' section."))
+	}
+	client.url = url
+
+	user, exist := serverConfig["user"].(string)
+	if !exist {
+		Console.CheckError(errors.New("User ID must be specified in 'server' section."))
+	}
+	client.user = user
+
+	password, exist := serverConfig["password"].(string)
+	if !exist {
+		Console.CheckError(errors.New("Password should be set in 'server' section."))
+	}
+	client.password = password
+
+	insecure, exist := serverConfig["insecure"].(bool)
+	if !exist {
+		insecure = false
+	}
+
+	client.connection, _ = xmlrpc.NewClient(client.url,
+		&http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: insecure,
+			},
+		})
 
 	return client
 }
@@ -51,32 +88,32 @@ func (client *rpcClient) GetSession() string {
 }
 
 func (client *rpcClient) auth() {
+	client.inUse = true
 	client.session = client.RequestFuction("auth.login", client.user, client.password).(string)
 	Console.CheckError(client.storeSession())
 }
 
-// Check if login is required
-func (client *rpcClient) isAuthRequired(err error) bool {
-	// Detect auth failure error in Uyuni :-)
-	// Better detection, perhaps?
-	return strings.Contains(err.Error(), "Could not find translator for class java.lang.String to interface com.redhat.rhn.domain.user.User") ||
-		strings.Contains(err.Error(), "com.redhat.rhn.common.hibernate.LookupException: Could not find session with id")
-}
-
 // Request a function call on the remote
 func (client *rpcClient) RequestFuction(name string, args ...interface{}) (v interface{}) {
+	if client.connection == nil {
+		Console.CheckError(errors.New("client is not connected yet"))
+	}
+
 	var result interface{}
 	err := client.connection.Call(name, args, &result)
 
-	if err != nil && client.isAuthRequired(err) {
-		client.auth()
-		// Repeat it again with replaced first element, which is always session token
-		nArgs := make([]interface{}, len(args))
-		nArgs[0] = client.session
-		Console.CheckError(client.connection.Call(name, nArgs, &result))
-	} else {
-		Console.CheckError(err)
+	if err != nil {
+		if !client.inUse {
+			client.auth()
+			// Repeat it again with replaced first element, which is always session token
+			nArgs := make([]interface{}, len(args))
+			nArgs[0] = client.session
+			Console.CheckError(client.connection.Call(name, nArgs, &result))
+		} else {
+			Console.CheckError(err)
+		}
 	}
+	client.inUse = true
 
 	return result
 }
@@ -84,5 +121,5 @@ func (client *rpcClient) RequestFuction(name string, args ...interface{}) (v int
 var RPC rpcClient
 
 func init() {
-	RPC = *RPCClient("https://suma-refhead-srv.mgr.suse.de/rpc/api", "admin", "admin", true) // XXX: todo get creds from the STDIN
+	RPC = *RPCClient()
 }
