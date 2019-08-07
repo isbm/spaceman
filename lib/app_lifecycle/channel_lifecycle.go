@@ -97,12 +97,10 @@ func init() {
 }
 
 type channelLifecycle struct {
-	channel          string
 	phases           []string
 	excludedChannels []string
 	filterChannels   []string
 	phasesDelimiter  string
-	verbose          bool
 	ctx              *cli.Context
 }
 
