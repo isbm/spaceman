@@ -7,6 +7,7 @@ import (
 	"github.com/isbm/spaceman/lib/utils"
 	"github.com/thoas/go-funk"
 	"github.com/urfave/cli"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -97,11 +98,12 @@ func init() {
 }
 
 type channelLifecycle struct {
-	phases           []string
-	excludedChannels []string
-	filterChannels   []string
-	phasesDelimiter  string
-	ctx              *cli.Context
+	phases                    []string
+	excludedChannels          []string
+	filterChannels            []string
+	allSoftwareChannelsCached []interface{}
+	phasesDelimiter           string
+	ctx                       *cli.Context
 }
 
 // NewChannelLifecycle constructor
@@ -109,6 +111,7 @@ func NewChannelLifecycle(context *cli.Context) *channelLifecycle {
 	lifecycle := new(channelLifecycle)
 	lifecycle.ctx = context
 	lifecycle.phasesDelimiter = "-"
+	lifecycle.allSoftwareChannelsCached = nil
 
 	return lifecycle
 }
@@ -134,10 +137,19 @@ func (lifecycle *channelLifecycle) promoteChannel(channelName string, init bool)
 	return channelName
 }
 
+// Get all software channels
+func (lifecycle *channelLifecycle) GetAllSoftwareChannels() []interface{} {
+	if lifecycle.allSoftwareChannelsCached == nil {
+		lifecycle.allSoftwareChannelsCached = utils.RPC.RequestFuction("channel.listSoftwareChannels", utils.RPC.GetSession()).([]interface{})
+	}
+
+	return lifecycle.allSoftwareChannelsCached
+}
+
 // Check if the destination channel already exists and thus needs a merger instead of new cloning.
 func (lifecycle *channelLifecycle) needsMerge(labelDst string) bool {
 	needs := false
-	for _, channelData := range utils.RPC.RequestFuction("channel.listSoftwareChannels", utils.RPC.GetSession()).([]interface{}) {
+	for _, channelData := range lifecycle.GetAllSoftwareChannels() {
 		label := channelData.(map[string]interface{})["label"].(string)
 		if label == labelDst {
 			needs = true
@@ -248,6 +260,49 @@ func (lifecycle *channelLifecycle) MakeArchiveLabel(labelSrc string) (string, er
 		label = fmt.Sprintf("archive-%d%02d%02d-%s", current.Year(), current.Month(), current.Day(), labelSrc)
 	}
 	return label, err
+}
+
+// Remove archive-YYYYMMDD- prefix
+func (lifecycle *channelLifecycle) UnarchiveLabel(labelSrc string) (string, error) {
+	var err error
+	re := regexp.MustCompile(`archive-\d{8}-`)
+	retLabel := ""
+	if re.MatchString(labelSrc) {
+		retLabel = re.ReplaceAllString(labelSrc, "")
+	} else {
+		err = fmt.Errorf("Label \"%s\" seems not an archive", labelSrc)
+	}
+
+	return retLabel, err
+}
+
+// Merge or clone all children channels
+func (lifecycle *channelLifecycle) ProcessChildrenChannels(labelSrc string) {
+	childrenChannels := make([]string, 0)
+	for _, channelData := range lifecycle.GetAllSoftwareChannels() {
+		parentLabel := channelData.(map[string]interface{})["parent_label"].(string)
+		if parentLabel == labelSrc {
+			childrenChannels = append(childrenChannels, channelData.(map[string]interface{})["label"].(string))
+		}
+	}
+
+	var destinationChannelName string
+	var err error
+	for _, childChannelLabel := range childrenChannels {
+		if lifecycle.ctx.Bool("archive") {
+			destinationChannelName, err = lifecycle.MakeArchiveLabel(childChannelLabel)
+		} else if lifecycle.ctx.Bool("rollback") {
+			destinationChannelName, err = lifecycle.UnarchiveLabel(childChannelLabel)
+		} else {
+			destinationChannelName = lifecycle.promoteChannel(childChannelLabel, lifecycle.ctx.Bool("init"))
+		}
+		utils.Console.CheckError(err)
+		if lifecycle.needsMerge(destinationChannelName) {
+			lifecycle.MergeChannels(childChannelLabel, destinationChannelName)
+		} else {
+			lifecycle.CloneChannel(childChannelLabel, destinationChannelName, lifecycle.GetChannelDetails(childChannelLabel))
+		}
+	}
 }
 
 // List available workflows
@@ -426,19 +481,33 @@ func ManageChannelLifecycle(ctx *cli.Context) error {
 
 	if ctx.Bool("list-workflows") {
 		lifecycle.ListWorkflows()
-	} else if ctx.Bool("promote") || ctx.Bool("init") {
+	} else if ctx.Bool("promote") || ctx.Bool("init") || ctx.Bool("archive") || ctx.Bool("rollback") {
 		channelToPromote := ctx.String("channel")
-		details := lifecycle.GetChannelDetails(channelToPromote)
-		promotedChannelName := lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
+		var destinationChannelName string
+		var err error
 
-		if lifecycle.needsMerge(promotedChannelName) {
-			lifecycle.MergeChannels(channelToPromote, promotedChannelName)
+		if ctx.Bool("archive") {
+			destinationChannelName, err = lifecycle.MakeArchiveLabel(channelToPromote)
+		} else if ctx.Bool("rollback") {
+			destinationChannelName, err = lifecycle.UnarchiveLabel(channelToPromote)
 		} else {
-			lifecycle.CloneChannel(channelToPromote, promotedChannelName, details)
+			destinationChannelName = lifecycle.promoteChannel(channelToPromote, ctx.Bool("init"))
+		}
+		utils.Console.CheckError(err)
+
+		if lifecycle.needsMerge(destinationChannelName) {
+			lifecycle.MergeChannels(channelToPromote, destinationChannelName)
+		} else {
+			lifecycle.CloneChannel(channelToPromote, destinationChannelName, lifecycle.GetChannelDetails(channelToPromote))
 		}
 
-		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, promotedChannelName)
-		app_info.NewInfoCmd(ctx).SetCurrentConfig().ChannelDetails(promotedChannelName)
+		// Process also child channels
+		if !ctx.Bool("no-children") {
+			lifecycle.ProcessChildrenChannels(channelToPromote)
+		}
+
+		Logger.Info("Channel \"%s\" promoted to \"%s\"\n", channelToPromote, destinationChannelName)
+		app_info.NewInfoCmd(ctx).SetCurrentConfig().ChannelDetails(destinationChannelName)
 	} else {
 		utils.Console.ExitOnUnknown("Don't know what to do.")
 	}
