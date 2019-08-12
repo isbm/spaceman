@@ -280,9 +280,11 @@ func (lifecycle *channelLifecycle) UnarchiveLabel(labelSrc string) (string, erro
 func (lifecycle *channelLifecycle) ProcessChildrenChannels(labelSrc string) {
 	childrenChannels := make([]string, 0)
 	for _, channelData := range lifecycle.GetAllSoftwareChannels() {
-		parentLabel := channelData.(map[string]interface{})["parent_label"].(string)
-		if parentLabel == labelSrc {
-			childrenChannels = append(childrenChannels, channelData.(map[string]interface{})["label"].(string))
+		if channelData.(map[string]interface{})["parent_label"] != nil {
+			parentLabel := channelData.(map[string]interface{})["parent_label"].(string)
+			if parentLabel == labelSrc {
+				childrenChannels = append(childrenChannels, channelData.(map[string]interface{})["label"].(string))
+			}
 		}
 	}
 
